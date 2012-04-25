@@ -86,9 +86,6 @@ typedef struct Chunk {
 #define COMM		0x4d4d4f43		/* "COMM" */
 
 
-/* Currently we only support a single stream at a time */
-static WAVStream *music = NULL;
-
 /* This is the format of the audio mixer data */
 static SDL_AudioSpec mixer;
 static int wavestream_volume = MIX_MAX_VOLUME;
@@ -164,16 +161,16 @@ WAVStream *WAVStream_LoadSong_RW(SDL_RWops *rw, const char *magic, int freerw)
 void WAVStream_Start(WAVStream *wave)
 {
 	SDL_RWseek (wave->rw, wave->start, RW_SEEK_SET);
-	music = wave;
+	wave->playing = 1;
 }
 
 /* Play some of a stream previously started with WAVStream_Start() */
-int WAVStream_PlaySome(Uint8 *stream, int len)
+int WAVStream_PlaySome(WAVStream *music, Uint8 *stream, int len)
 {
 	long pos;
 	int left = 0;
 
-	if ( music && ((pos=SDL_RWtell(music->rw)) < music->stop) ) {
+	if ( music && (music->playing == 1) && ((pos=SDL_RWtell(music->rw)) < music->stop) ) {
 		if ( music->cvt.needed ) {
 			int original_len;
 
@@ -227,9 +224,9 @@ int WAVStream_PlaySome(Uint8 *stream, int len)
 }
 
 /* Stop playback of a stream previously started with WAVStream_Start() */
-void WAVStream_Stop(void)
+void WAVStream_Stop(WAVStream *music)
 {
-	music = NULL;
+	music->playing = 0;
 }
 
 /* Close the given WAV stream */
@@ -247,13 +244,13 @@ void WAVStream_FreeSong(WAVStream *wave)
 	}
 }
 
-/* Return non-zero if a stream is currently playing */
-int WAVStream_Active(void)
+/* Return non-zero if the given stream is currently playing */
+int WAVStream_Active(WAVStream *music)
 {
 	int active;
 
 	active = 0;
-	if ( music && (SDL_RWtell(music->rw) < music->stop) ) {
+	if ( music && music->playing && (SDL_RWtell(music->rw) < music->stop) ) {
 		active = 1;
 	}
 	return(active);
