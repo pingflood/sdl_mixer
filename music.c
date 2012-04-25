@@ -306,14 +306,14 @@ void music_mixer(void *udata, Mix_Music * music_playing, Uint8 *master_stream, i
 #ifdef USE_FLUIDSYNTH_MIDI
 		if ( fluidsynth_ok ) {
 			fluidsynth_playsome(music_playing->data.fluidsynthmidi, stream, len);
-			goto skip;
+			break;
 		}
 #endif
 #ifdef USE_TIMIDITY_MIDI
 		if ( timidity_ok ) {
 			int samples = len / samplesize;
 			Timidity_PlaySome(stream, samples);
-			goto skip;
+			break;
 		}
 #endif
 		break;
