@@ -331,6 +331,7 @@ void music_mixer(void *udata, Mix_Music * music_playing, Uint8 *master_stream, i
 #endif
 #ifdef MP3_MUSIC
 	case MUS_MP3:
+		memset(stream, 0, len);
 		left = (len - smpeg.SMPEG_playAudio(music_playing->data.mp3, stream, len));
 		break;
 #endif
