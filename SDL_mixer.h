@@ -205,8 +205,11 @@ extern DECLSPEC void SDLCALL Mix_SetPostMix(void (*mix_func)
 /* Add your own music player or additional mixer function.
    If 'mix_func' is NULL, the default music player is re-enabled.
  */
-extern DECLSPEC void SDLCALL Mix_HookMusic(void (*mix_func)
+extern DECLSPEC void SDLCALL Mix_HookMusicCh(void (*mix_func)
                           (void *udata, Mix_Music *music_playing, Uint8 *stream, int len, int channel), void *arg);
+/* For backwards compatibility. */
+extern DECLSPEC void SDLCALL Mix_HookMusic(void (*mix_func)
+                          (void *udata, Uint8 *stream, int len), void *arg);
 
 /* Add your own callback when the music has finished playing.
    This callback is only called if the music finishes naturally.
@@ -214,6 +217,9 @@ extern DECLSPEC void SDLCALL Mix_HookMusic(void (*mix_func)
 extern DECLSPEC void SDLCALL Mix_HookMusicFinished(void (*music_finished)(void));
 
 /* Get a pointer to the user data for the current music hook */
+extern DECLSPEC void * SDLCALL Mix_GetMusicHookDataCh(void);
+/* For backwards compatibility. Returns the user data registered with
+ * Mix_HookMusic(). */
 extern DECLSPEC void * SDLCALL Mix_GetMusicHookData(void);
 
 /*
@@ -536,11 +542,16 @@ extern DECLSPEC int SDLCALL Mix_GroupNewer(int tag);
 
 /* The same as above, but the sound is played at most 'ticks' milliseconds */
 extern DECLSPEC int SDLCALL Mix_PlayChannelTimed(int channel, Mix_Chunk *chunk, int loops, int ticks);
-extern DECLSPEC int SDLCALL Mix_PlayMusic(Mix_Music *music, int loops, int channel);
+extern DECLSPEC int SDLCALL Mix_PlayMusicCh(Mix_Music *music, int loops, int channel);
+/* For backwards compatibility. */
+extern DECLSPEC int SDLCALL Mix_PlayMusic(Mix_Music *music, int loops);
 
 /* Fade in music or a channel over "ms" milliseconds, same semantics as the "Play" functions */
-extern DECLSPEC int SDLCALL Mix_FadeInMusic(Mix_Music *music, int loops, int ms, int channel);
-extern DECLSPEC int SDLCALL Mix_FadeInMusicPos(Mix_Music *music, int loops, int ms, int channel, double position);
+extern DECLSPEC int SDLCALL Mix_FadeInMusicCh(Mix_Music *music, int loops, int ms, int channel);
+extern DECLSPEC int SDLCALL Mix_FadeInMusicPosCh(Mix_Music *music, int loops, int ms, int channel, double position);
+/* For backwards compatibility. */
+extern DECLSPEC int SDLCALL Mix_FadeInMusic(Mix_Music *music, int loops, int ms);
+extern DECLSPEC int SDLCALL Mix_FadeInMusicPos(Mix_Music *music, int loops, int ms, double position);
 #define Mix_FadeInChannel(channel,chunk,loops,ms) Mix_FadeInChannelTimed(channel,chunk,loops,ms,-1)
 extern DECLSPEC int SDLCALL Mix_FadeInChannelTimed(int channel, Mix_Chunk *chunk, int loops, int ms, int ticks);
 
@@ -551,12 +562,16 @@ extern DECLSPEC int SDLCALL Mix_FadeInChannelTimed(int channel, Mix_Chunk *chunk
 */
 extern DECLSPEC int SDLCALL Mix_Volume(int channel, int volume);
 extern DECLSPEC int SDLCALL Mix_VolumeChunk(Mix_Chunk *chunk, int volume);
-extern DECLSPEC int SDLCALL Mix_VolumeMusic(int volume, int channel);
+extern DECLSPEC int SDLCALL Mix_VolumeMusicCh(int volume, int channel);
+/* For backwards compatibility. */
+extern DECLSPEC int SDLCALL Mix_VolumeMusic(int volume);
 
 /* Halt playing of a particular channel */
 extern DECLSPEC int SDLCALL Mix_HaltChannel(int channel);
 extern DECLSPEC int SDLCALL Mix_HaltGroup(int tag);
-extern DECLSPEC int SDLCALL Mix_HaltMusic(Mix_Music *music);
+extern DECLSPEC int SDLCALL Mix_HaltMusicCh(Mix_Music *music);
+/* For backwards compatibility. */
+extern DECLSPEC int SDLCALL Mix_HaltMusic(void);
 
 /* Change the expiration delay for a particular channel.
    The sample will stop playing after the 'ticks' milliseconds have elapsed,
@@ -570,10 +585,14 @@ extern DECLSPEC int SDLCALL Mix_ExpireChannel(int channel, int ticks);
  */
 extern DECLSPEC int SDLCALL Mix_FadeOutChannel(int which, int ms);
 extern DECLSPEC int SDLCALL Mix_FadeOutGroup(int tag, int ms);
-extern DECLSPEC int SDLCALL Mix_FadeOutMusic(int ms, int channel);
+extern DECLSPEC int SDLCALL Mix_FadeOutMusicCh(int ms, int channel);
+/* For backwards compatibility. */
+extern DECLSPEC int SDLCALL Mix_FadeOutMusic(int ms);
 
 /* Query the fading status of a channel */
-extern DECLSPEC Mix_Fading SDLCALL Mix_FadingMusic(int channel);
+extern DECLSPEC Mix_Fading SDLCALL Mix_FadingMusicCh(int channel);
+/* For backwards compatibility. */
+extern DECLSPEC Mix_Fading SDLCALL Mix_FadingMusic(void);
 extern DECLSPEC Mix_Fading SDLCALL Mix_FadingChannel(int which);
 
 /* Pause/Resume a particular channel */
@@ -582,11 +601,17 @@ extern DECLSPEC void SDLCALL Mix_Resume(int channel);
 extern DECLSPEC int SDLCALL Mix_Paused(int channel);
 
 /* Pause/Resume the music stream */
-#define Mix_PauseMusic(channel) Mix_Pause(channel)
-#define Mix_ResumeMusic(channel) Mix_Resume(channel)
-#define Mix_PausedMusic(channel) Mix_Paused(channel)
+#define Mix_PauseMusicCh(channel) Mix_Pause(channel)
+#define Mix_ResumeMusicCh(channel) Mix_Resume(channel)
+#define Mix_PausedMusicCh(channel) Mix_Paused(channel)
+/* For backwards compatibility. */
+extern DECLSPEC void SDLCALL Mix_PauseMusic(void);
+extern DECLSPEC void SDLCALL Mix_ResumeMusic(void);
+extern DECLSPEC int SDLCALL Mix_PausedMusic(void);
 
-extern DECLSPEC void SDLCALL Mix_RewindMusic(int channel);
+extern DECLSPEC void SDLCALL Mix_RewindMusicCh(int channel);
+/* For backwards compatibility. */
+extern DECLSPEC void SDLCALL Mix_RewindMusic(void);
 
 /* Set the current position in the music stream.
    This returns 0 if successful, or -1 if it failed or isn't implemented.
@@ -594,16 +619,23 @@ extern DECLSPEC void SDLCALL Mix_RewindMusic(int channel);
    order number) and for OGG, FLAC, MP3_MAD, and MODPLUG music (set 
    position in seconds), at the moment.
 */
-extern DECLSPEC int SDLCALL Mix_SetMusicPosition(double position, int channel);
+extern DECLSPEC int SDLCALL Mix_SetMusicPositionCh(double position, int channel);
+/* For backwards compatibility. */
+extern DECLSPEC int SDLCALL Mix_SetMusicPosition(double position);
+
 
 /* Check the status of a specific channel.
    If the specified channel is -1, check all channels.
 */
 extern DECLSPEC int SDLCALL Mix_Playing(int channel);
-extern DECLSPEC int SDLCALL Mix_PlayingMusic(int channel);
+extern DECLSPEC int SDLCALL Mix_PlayingMusicCh(int channel);
+/* For backwards compatibility. */
+extern DECLSPEC int SDLCALL Mix_PlayingMusic(void);
 
 /* Stop music and set external music playback command */
-extern DECLSPEC int SDLCALL Mix_SetMusicCMD(const char *command, int channel);
+extern DECLSPEC int SDLCALL Mix_SetMusicCMDCh(const char *command, int channel);
+/* For backwards compatibility. */
+extern DECLSPEC int SDLCALL Mix_SetMusicCMD(const char *command);
 
 /* Synchro value is set by MikMod from modules while playing */
 extern DECLSPEC int SDLCALL Mix_SetSynchroValue(int value);

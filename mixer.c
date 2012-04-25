@@ -51,6 +51,9 @@
 #define CREA		0x61657243		/* "Crea" */
 #define FLAC		0x43614C66		/* "fLaC" */
 
+/* See music.c. */
+#define MUSIC_COMPAT_MAGIC_CHANNEL -666
+
 static int audio_opened = 0;
 static SDL_AudioSpec mixer;
 
@@ -89,6 +92,8 @@ typedef struct {
 } _Mix_Channel;
 
 static _Mix_Channel *mix_channel = NULL;
+/* For the old-style, single-channel music API. */
+static _Mix_Channel mix_music_compat_channel;
 
 static effect_info *posteffects = NULL;
 
@@ -111,7 +116,9 @@ extern void close_music(void);
 extern int volatile music_active;
 extern void music_mixer(void *udata, Mix_Music * music_playing, Uint8 *stream, int len, int channel);
 static void (*mix_music)(void *udata, Mix_Music * music_playing, Uint8 *stream, int len, int channel) = music_mixer;
+static void (*mix_compat_music)(void *udata, Uint8 *stream, int len) = NULL;
 static void *music_data = NULL;
+static void *music_compat_data = NULL;
 
 /* rcg06042009 report available decoders at runtime. */
 static const char **chunk_decoders = NULL;
@@ -125,15 +132,21 @@ extern char* soundfont_paths;
 void _HaltAllMusic(void)
 {
 	int i;
+	if ( mix_music_compat_channel.playing ) {
+		Mix_HaltMusicCh(mix_music_compat_channel.music);
+	}
 	for ( i=0; i<num_channels; ++i ) {
 		if ((mix_channel[i].is_music) && mix_channel[i].playing)
-			Mix_HaltMusic(mix_channel[i].music);
+			Mix_HaltMusicCh(mix_channel[i].music);
 	}
 }
 
 SDL_bool _MusicIsPlaying(Mix_Music * song)
 {
 	int i;
+	if ( mix_music_compat_channel.music == song && mix_music_compat_channel.playing ) {
+		return SDL_TRUE;
+	}
 	for ( i=0; i<num_channels; ++i ) {
 		if ((mix_channel[i].music == song) && mix_channel[i].playing)
 			return SDL_TRUE;
@@ -273,6 +286,11 @@ static int _Mix_remove_all_effects(int channel, effect_info **e);
  */
 static void _Mix_channel_done_playing(int channel)
 {
+	if (channel == MUSIC_COMPAT_MAGIC_CHANNEL) {
+		/* No need to do anything for the single-channel music stream. */
+		return;
+	}
+
 	if (channel_done_callback) {
 	    channel_done_callback(channel);
 	}
@@ -286,30 +304,36 @@ static void _Mix_channel_done_playing(int channel)
 
 void _StartMusic(int which, int is_fading, Mix_Music* music)
 {
+	_Mix_Channel* channel = NULL;
 	/* Lock the mixer while modifying the playing channels */
 	SDL_LockAudio();
 	{
+		if ( which == MUSIC_COMPAT_MAGIC_CHANNEL ) {
+			channel = &mix_music_compat_channel;
+		} else if ( which >= 0 && which < num_channels ) {
+			channel = &mix_channel[which];
+		}
 		/* Queue up the audio data for this channel */
-		if ( which >= 0 && which < num_channels ) {
+		if ( channel != NULL ) {
 			Uint32 sdl_ticks = SDL_GetTicks();
 			if (Mix_Playing(which))
 				_Mix_channel_done_playing(which);
-			if (!mix_channel[which].is_music) {
-				Mix_FreeChunk(mix_channel[which].sound->chunk);
-				free(mix_channel[which].sound);
-				mix_channel[which].sound = NULL;
-				mix_channel[which].is_music = SDL_TRUE;
+			if (!channel->is_music) {
+				Mix_FreeChunk(channel->sound->chunk);
+				free(channel->sound);
+				channel->sound = NULL;
+				channel->is_music = SDL_TRUE;
 			}
-			mix_channel[which].music = music;
-			mix_channel[which].playing = 1;
-			mix_channel[which].looping = -1;
-			mix_channel[which].paused = 0;
+			channel->music = music;
+			channel->playing = 1;
+			channel->looping = -1;
+			channel->paused = 0;
 			if (is_fading){
-				mix_channel[which].fading = MIX_FADING_IN;
-				mix_channel[which].fade_volume_reset = mix_channel[which].volume;
-				mix_channel[which].volume = 0;
+				channel->fading = MIX_FADING_IN;
+				channel->fade_volume_reset = channel->volume;
+				channel->volume = 0;
 			} else {
-				mix_channel[which].fading = MIX_NO_FADING;
+				channel->fading = MIX_NO_FADING;
 			}
 		}
 	}
@@ -319,6 +343,13 @@ void _StartMusic(int which, int is_fading, Mix_Music* music)
 void _ClearMusic(Mix_Music * song)
 {
 	int i;
+
+	if ( mix_music_compat_channel.music == song ) {
+		mix_music_compat_channel.playing = 0;
+		mix_music_compat_channel.looping = 0;
+		mix_music_compat_channel.music = NULL;
+	}
+
 	for ( i=0; i<num_channels; ++i ) {
 		if ((mix_channel[i].is_music) && (mix_channel[i].music == song)){
 			mix_channel[i].playing = 0;
@@ -331,8 +362,15 @@ void _ClearMusic(Mix_Music * song)
 void *Mix_DoEffects(int chan, void *snd, int len)
 {
 	int posteffect = (chan == MIX_CHANNEL_POST);
-	effect_info *e = ((posteffect) ? posteffects : mix_channel[chan].effects);
+	effect_info *e;
 	void *buf = snd;
+
+	/* The single-channel music stream supports only postmix effects. */
+	if ( (chan == MUSIC_COMPAT_MAGIC_CHANNEL) || posteffect ) {
+		e = posteffects;
+	} else {
+		e = mix_channel[chan].effects;
+	}
 
 	if (e != NULL) {    /* are there any registered effects? */
 		/* if this is the postmix, we can just overwrite the original. */
@@ -453,6 +491,13 @@ static void mix_channels(void *udata, Uint8 *stream, int len)
 #endif
 
 	/* Mix the music (must be done before the channels are added) */
+	if ( (mix_music_compat_channel.playing) && ( ! mix_music_compat_channel.paused ) ) {
+		if (mix_compat_music != NULL) {
+			mix_compat_music(music_compat_data, stream, len);
+		} else {
+			mix_music(music_data, mix_music_compat_channel.music, stream, len, MUSIC_COMPAT_MAGIC_CHANNEL);
+		}
+	}
 	for ( i=0; i<num_channels; ++i ) {
 		if ((mix_channel[i].is_music) && (mix_channel[i].playing) && ( ! mix_channel[i].paused )) {
 			mix_music(music_data, mix_channel[i].music, stream, len, i);
@@ -549,6 +594,11 @@ int Mix_OpenAudio(int frequency, Uint16 format, int nchannels, int chunksize)
 	for ( i=0; i<num_channels; ++i ) {
 		_Mix_InitChannel(i);
 	}
+
+	mix_music_compat_channel = mix_channel[0];
+	mix_music_compat_channel.sound = NULL;
+	mix_music_compat_channel.is_music = SDL_TRUE;
+	mix_music_compat_channel.playing = 0;
 
 	_Mix_InitEffects();
 
@@ -850,7 +900,7 @@ void Mix_SetPostMix(void (*mix_func)
 /* Add your own music player or mixer function.
    If 'mix_func' is NULL, the default music player is re-enabled.
  */
-void Mix_HookMusic(void (*mix_func)(void *udata, Mix_Music *music_playing, Uint8 *stream, int len, int channel),
+void Mix_HookMusicCh(void (*mix_func)(void *udata, Mix_Music *music_playing, Uint8 *stream, int len, int channel),
                                                                 void *arg)
 {
 	SDL_LockAudio();
@@ -864,9 +914,27 @@ void Mix_HookMusic(void (*mix_func)(void *udata, Mix_Music *music_playing, Uint8
 	SDL_UnlockAudio();
 }
 
-void *Mix_GetMusicHookData(void)
+void Mix_HookMusic(void (*mix_func)(void *udata, Uint8 *stream, int len), void *arg)
+{
+	SDL_LockAudio();
+	if ( mix_func != NULL ) {
+		music_compat_data = arg;
+		mix_compat_music = mix_func;
+	} else {
+		music_compat_data = NULL;
+		mix_music = NULL;
+	}
+	SDL_UnlockAudio();
+}
+
+void *Mix_GetMusicHookDataCh(void)
 {
 	return(music_data);
+}
+
+void *Mix_GetMusicHookData(void)
+{
+	return(music_compat_data);
 }
 
 void Mix_ChannelFinished(void (*channel_finished)(int channel))
@@ -1063,7 +1131,7 @@ int Mix_HaltChannel(int which)
 		SDL_LockAudio();
 		if (mix_channel[which].playing) {
 			if (mix_channel[which].is_music)
-				Mix_HaltMusic(mix_channel[which].music);
+				Mix_HaltMusicCh(mix_channel[which].music);
 			else _Mix_channel_done_playing(which);
 			mix_channel[which].playing = 0;
 			mix_channel[which].looping = 0;
@@ -1126,7 +1194,7 @@ int Mix_FadeOutChannel(int which, int ms)
 			    (mix_channel[which].volume > 0) &&
 			    (mix_channel[which].fading != MIX_FADING_OUT) ) {
 					if (mix_channel[which].is_music) {
-						Mix_FadeOutMusic(ms, which);
+						Mix_FadeOutMusicCh(ms, which);
 					} else {
 						mix_channel[which].sound->fade_volume = mix_channel[which].volume;
 						mix_channel[which].fading = MIX_FADING_OUT;
@@ -1184,6 +1252,12 @@ int Mix_Playing(int which)
 			{
 				++status;
 			}
+		}
+	} else if ( which == MUSIC_COMPAT_MAGIC_CHANNEL ) {
+		if ( (mix_music_compat_channel.playing > 0) ||
+			 (mix_music_compat_channel.looping > 0) )
+		{
+			++status;
 		}
 	} else if ( which < num_channels ) {
 		if ( (mix_channel[which].playing > 0) ||
