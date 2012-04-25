@@ -199,7 +199,6 @@ int Mix_Init(int flags)
 	if (flags & MIX_INIT_MOD) {
 #ifdef MOD_MUSIC
 		if ((initialized & MIX_INIT_MOD) || Mix_InitMOD() == 0) {
-			Mod_Init();
 			result |= MIX_INIT_MOD;
 		}
 #else
