@@ -915,7 +915,7 @@ static int music_internal_play(Mix_Music *music, double position, int channel)
 	    case MUS_MOD:
 		MOD_play(music->data.module);
 		/* Player_SetVolume() does nothing before Player_Start() */
-		music_internal_initialize_volume();
+		music_internal_initialize_volume(music);
 		break;
 #endif
 #ifdef MID_MUSIC
