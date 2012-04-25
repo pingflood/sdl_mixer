@@ -43,8 +43,8 @@ static int next_track = 0;
 
 void CleanUp(int exitcode)
 {
-	if( Mix_PlayingMusic(0) ) {
-		Mix_FadeOutMusic(1500, 0);
+	if( Mix_PlayingMusicCh(0) ) {
+		Mix_FadeOutMusicCh(1500, 0);
 		SDL_Delay(1500);
 	}
 	if ( music ) {
@@ -73,21 +73,21 @@ void Menu(void)
 	if (scanf("%s",buf) == 1) {
 		switch(buf[0]){
 		case 'p': case 'P':
-			Mix_PauseMusic(0);
+			Mix_PauseMusicCh(0);
 			break;
 		case 'r': case 'R':
-			Mix_ResumeMusic(0);
+			Mix_ResumeMusicCh(0);
 			break;
 		case 'h': case 'H':
-			Mix_HaltMusic(music);
+			Mix_HaltMusicCh(music);
 			break;
 		case 'v': case 'V':
-			Mix_VolumeMusic(atoi(buf+1), 0);
+			Mix_VolumeMusicCh(atoi(buf+1), 0);
 			break;
 		}
 	}
-	printf("Music playing: %s Paused: %s\n", Mix_PlayingMusic(0) ? "yes" : "no", 
-		   Mix_PausedMusic(0) ? "yes" : "no");
+	printf("Music playing: %s Paused: %s\n", Mix_PlayingMusicCh(0) ? "yes" : "no", 
+		   Mix_PausedMusicCh(0) ? "yes" : "no");
 }
 
 #ifdef HAVE_SIGNAL_H
@@ -190,10 +190,10 @@ int main(int argc, char *argv[])
 	audio_open = 1;
 
 	/* Set the music volume */
-	Mix_VolumeMusic(audio_volume, 0);
+	Mix_VolumeMusicCh(audio_volume, 0);
 
 	/* Set the external music player, if any */
-	Mix_SetMusicCMD(SDL_getenv("MUSIC_CMD"), 0);
+	Mix_SetMusicCMDCh(SDL_getenv("MUSIC_CMD"), 0);
 
 	while (argv[i]) {
 		next_track = 0;
@@ -213,8 +213,8 @@ int main(int argc, char *argv[])
 		
 		/* Play and then exit */
 		printf("Playing %s\n", argv[i]);
-		Mix_FadeInMusic(music,looping,2000,0);
-		while ( !next_track && (Mix_PlayingMusic(0) || Mix_PausedMusic(0)) ) {
+		Mix_FadeInMusicCh(music,looping,2000,0);
+		while ( !next_track && (Mix_PlayingMusicCh(0) || Mix_PausedMusicCh(0)) ) {
 			if(interactive)
 				Menu();
 			else
