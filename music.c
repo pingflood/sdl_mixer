@@ -72,12 +72,18 @@ static SDL_AudioSpec used_mixer;
 #endif
 
 
-int volatile music_active = 1;
 static int volatile music_stopped = 0;
 static int music_loops = 0;
 static char *music_cmd = NULL;
-static Mix_Music * volatile music_playing = NULL;
 static int music_volume = MIX_MAX_VOLUME;
+
+extern SDL_bool _MusicIsPlaying(Mix_Music * song);
+extern void *Mix_DoEffects(int chan, void *snd, int len);
+extern void _WaitForChannelFade(int channel);
+extern Mix_Music* _ChannelPlayingMusic(int channel);
+extern void _HaltAllMusic(void);
+extern void _StartMusic(int channel, int is_fading, Mix_Music* music);
+extern void _ClearMusic(Mix_Music * song);
 
 struct _Mix_Music {
 	Mix_MusicType type;
@@ -172,12 +178,12 @@ static void add_music_decoder(const char *decoder)
 }
 
 /* Local low-level functions prototypes */
-static void music_internal_initialize_volume(void);
-static void music_internal_volume(int volume);
-static int  music_internal_play(Mix_Music *music, double position);
-static int  music_internal_position(double position);
-static int  music_internal_playing();
-static void music_internal_halt(void);
+static void music_internal_initialize_volume(Mix_Music *music_playing);
+static void music_internal_volume(Mix_Music *music_playing, int volume);
+static int  music_internal_play(Mix_Music *music, double position, int channel);
+static int  music_internal_position(double position, Mix_Music *music_playing);
+static int  music_internal_playing(Mix_Music *music_playing);
+static void music_internal_halt(Mix_Music *music);
 
 
 /* Support for hooking when the music has finished */
@@ -193,11 +199,11 @@ void Mix_HookMusicFinished(void (*music_finished)(void))
 
 /* If music isn't playing, halt it if no looping is required, restart it */
 /* otherwhise. NOP if the music is playing */
-static int music_halt_or_loop (void)
+static int music_halt_or_loop (Mix_Music * music_playing, int channel)
 {
 	/* Restart music if it has to loop */
 	
-	if (!music_internal_playing()) 
+	if (!music_internal_playing(music_playing))
 	{
 #ifdef USE_NATIVE_MIDI
 		/* Native MIDI handles looping internally */
@@ -212,12 +218,12 @@ static int music_halt_or_loop (void)
 			Mix_Fading current_fade;
 			--music_loops;
 			current_fade = music_playing->fading;
-			music_internal_play(music_playing, 0.0);
+			music_internal_play(music_playing, 0.0, channel);
 			music_playing->fading = current_fade;
 		} 
 		else 
 		{
-			music_internal_halt();
+			music_internal_halt(music_playing);
 			if (music_finished_hook)
 				music_finished_hook();
 			
@@ -231,117 +237,124 @@ static int music_halt_or_loop (void)
 
 
 /* Mixing function */
-void music_mixer(void *udata, Uint8 *stream, int len)
+void music_mixer(void *udata, Mix_Music * music_playing, Uint8 *master_stream, int len, int channel)
 {
 	int left = 0;
+	Uint8 * stream;
+	Uint8 * mix_input;
 
-	if ( music_playing && music_active ) {
-		/* Handle fading */
-		if ( music_playing->fading != MIX_NO_FADING ) {
-			if ( music_playing->fade_step++ < music_playing->fade_steps ) {
-				int volume;
-				int fade_step = music_playing->fade_step;
-				int fade_steps = music_playing->fade_steps;
-
-				if ( music_playing->fading == MIX_FADING_OUT ) {
-					volume = (music_volume * (fade_steps-fade_step)) / fade_steps;
-				} else { /* Fading in */
-					volume = (music_volume * fade_step) / fade_steps;
-				}
-				music_internal_volume(volume);
-			} else {
-				if ( music_playing->fading == MIX_FADING_OUT ) {
-					music_internal_halt();
-					if ( music_finished_hook ) {
-						music_finished_hook();
-					}
-					return;
-				}
-				music_playing->fading = MIX_NO_FADING;
+	/* Handle fading */
+	if ( music_playing->fading != MIX_NO_FADING ) {
+		if ( music_playing->fade_step++ < music_playing->fade_steps ) {
+			int volume;
+			int fade_step = music_playing->fade_step;
+			int fade_steps = music_playing->fade_steps;
+			
+			if ( music_playing->fading == MIX_FADING_OUT ) {
+				volume = (music_volume * (fade_steps-fade_step)) / fade_steps;
+			} else { /* Fading in */
+				volume = (music_volume * fade_step) / fade_steps;
 			}
-		}
-		
-		music_halt_or_loop();
-		if (!music_internal_playing())
-			return;
-
-		switch (music_playing->type) {
-#ifdef CMD_MUSIC
-			case MUS_CMD:
-				/* The playing is done externally */
-				break;
-#endif
-#ifdef WAV_MUSIC
-			case MUS_WAV:
-				left = WAVStream_PlaySome(stream, len);
-				break;
-#endif
-#ifdef MODPLUG_MUSIC
-			case MUS_MODPLUG:
-				left = modplug_playAudio(music_playing->data.modplug, stream, len);
-				break;
-#endif
-#ifdef MOD_MUSIC
-			case MUS_MOD:
-				left = MOD_playAudio(music_playing->data.module, stream, len);
-				break;
-#endif
-#ifdef MID_MUSIC
-			case MUS_MID:
-#ifdef USE_NATIVE_MIDI
-  				if ( native_midi_ok ) {
-					/* Native midi is handled asynchronously */
-					goto skip;
-	  			}
-#endif
-#ifdef USE_FLUIDSYNTH_MIDI
-				if ( fluidsynth_ok ) {
-					fluidsynth_playsome(music_playing->data.fluidsynthmidi, stream, len);
-					goto skip;
+			music_internal_volume(music_playing, volume);
+		} else {
+			if ( music_playing->fading == MIX_FADING_OUT ) {
+				music_internal_halt(music_playing);
+				if ( music_finished_hook ) {
+					music_finished_hook();
 				}
-#endif
-#ifdef USE_TIMIDITY_MIDI
-				if ( timidity_ok ) {
-					int samples = len / samplesize;
-  					Timidity_PlaySome(stream, samples);
-					goto skip;
-				}
-#endif
-				break;
-#endif
-#ifdef OGG_MUSIC
-			case MUS_OGG:
-				
-				left = OGG_playAudio(music_playing->data.ogg, stream, len);
-				break;
-#endif
-#ifdef FLAC_MUSIC
-			case MUS_FLAC:
-				left = FLAC_playAudio(music_playing->data.flac, stream, len);
-				break;
-#endif
-#ifdef MP3_MUSIC
-			case MUS_MP3:
-				left = (len - smpeg.SMPEG_playAudio(music_playing->data.mp3, stream, len));
-				break;
-#endif
-#ifdef MP3_MAD_MUSIC
-			case MUS_MP3_MAD:
-				left = mad_getSamples(music_playing->data.mp3_mad, stream, len);
-				break;
-#endif
-			default:
-				/* Unknown music type?? */
-				break;
+				return;
+			}
+			music_playing->fading = MIX_NO_FADING;
 		}
 	}
-
+	
+	music_halt_or_loop(music_playing, channel);
+	if (!music_internal_playing(music_playing))
+		return;
+	
+	stream = (Uint8*) malloc(len);
+	
+	switch (music_playing->type) {
+#ifdef CMD_MUSIC
+	case MUS_CMD:
+		/* The playing is done externally */
+		break;
+#endif
+#ifdef WAV_MUSIC
+	case MUS_WAV:
+		left = WAVStream_PlaySome(stream, len);
+		break;
+#endif
+#ifdef MODPLUG_MUSIC
+	case MUS_MODPLUG:
+		left = modplug_playAudio(music_playing->data.modplug, stream, len);
+		break;
+#endif
+#ifdef MOD_MUSIC
+	case MUS_MOD:
+		left = MOD_playAudio(music_playing->data.module, stream, len);
+		break;
+#endif
+#ifdef MID_MUSIC
+    case MUS_MID:
+#ifdef USE_NATIVE_MIDI
+		if ( native_midi_ok ) {
+			/* Native midi is handled asynchronously */
+			goto skip;
+		}
+#endif
+#ifdef USE_FLUIDSYNTH_MIDI
+		if ( fluidsynth_ok ) {
+			fluidsynth_playsome(music_playing->data.fluidsynthmidi, stream, len);
+			goto skip;
+		}
+#endif
+#ifdef USE_TIMIDITY_MIDI
+		if ( timidity_ok ) {
+			int samples = len / samplesize;
+			Timidity_PlaySome(stream, samples);
+			goto skip;
+		}
+#endif
+		break;
+#endif
+#ifdef OGG_MUSIC
+	case MUS_OGG:
+		
+		left = OGG_playAudio(music_playing->data.ogg, stream, len);
+		break;
+#endif
+#ifdef FLAC_MUSIC
+	case MUS_FLAC:
+		left = FLAC_playAudio(music_playing->data.flac, stream, len);
+		break;
+#endif
+#ifdef MP3_MUSIC
+	case MUS_MP3:
+		left = (len - smpeg.SMPEG_playAudio(music_playing->data.mp3, stream, len));
+		break;
+#endif
+#ifdef MP3_MAD_MUSIC
+	case MUS_MP3_MAD:
+		left = mad_getSamples(music_playing->data.mp3_mad, stream, len);
+		break;
+#endif
+	default:
+		/* Unknown music type?? */
+		break;
+	}
+	mix_input = Mix_DoEffects(channel, stream, len);
+	SDL_MixAudio(master_stream,mix_input,len,Mix_VolumeMusic(-1, channel));
+	if (mix_input != stream)
+		free(mix_input);
+	free(stream);
+	
 skip:
 	/* Handle seamless music looping */
 	if (left > 0 && left < len) {
-		music_halt_or_loop();
-		if (music_internal_playing())
-			music_mixer(udata, stream+(len-left), left);
+		music_halt_or_loop(music_playing, channel);
+		if (music_internal_playing(music_playing))
+			music_mixer(udata, music_playing, master_stream+(len-left), left, channel);
 	}
 }
 
@@ -415,9 +428,7 @@ int open_music(SDL_AudioSpec *mixer)
 	add_music_decoder("MP3");
 #endif
 
-	music_playing = NULL;
 	music_stopped = 0;
-	Mix_VolumeMusic(SDL_MIX_MAXVOLUME);
 
 	/* Calculate the number of ms for each callback */
 	ms_per_step = (int) (((float)mixer->samples * 1000.0) / mixer->freq);
@@ -757,17 +768,18 @@ void Mix_FreeMusic(Mix_Music *music)
 	if ( music ) {
 		/* Stop the music if it's currently playing */
 		SDL_LockAudio();
-		if ( music == music_playing ) {
+		if ( _MusicIsPlaying(music) ) {
 			/* Wait for any fade out to finish */
 			while ( music->fading == MIX_FADING_OUT ) {
 				SDL_UnlockAudio();
 				SDL_Delay(100);
 				SDL_LockAudio();
 			}
-			if ( music == music_playing ) {
-				music_internal_halt();
+			if ( _MusicIsPlaying(music) ) {
+				music_internal_halt(music);
 			}
 		}
+		_ClearMusic(music);
 		SDL_UnlockAudio();
 		switch (music->type) {
 #ifdef CMD_MUSIC
@@ -842,8 +854,7 @@ void Mix_FreeMusic(Mix_Music *music)
 	}
 }
 
-/* Find out the music format of a mixer music, or the currently playing
-   music, if 'music' is NULL.
+/* Find out the music format of a mixer music.
 */
 Mix_MusicType Mix_GetMusicType(const Mix_Music *music)
 {
@@ -851,19 +862,13 @@ Mix_MusicType Mix_GetMusicType(const Mix_Music *music)
 
 	if ( music ) {
 		type = music->type;
-	} else {
-		SDL_LockAudio();
-		if ( music_playing ) {
-			type = music_playing->type;
-		}
-		SDL_UnlockAudio();
 	}
 	return(type);
 }
 
 /* Play a music chunk.  Returns 0, or -1 if there was an error.
  */
-static int music_internal_play(Mix_Music *music, double position)
+static int music_internal_play(Mix_Music *music, double position, int channel)
 {
 	int retval = 0;
 
@@ -871,22 +876,19 @@ static int music_internal_play(Mix_Music *music, double position)
 	/* This fixes a bug with native MIDI on Mac OS X, where you
 	   can't really stop and restart MIDI from the audio callback.
 	*/
-	if ( music == music_playing && music->type == MUS_MID && native_midi_ok ) {
+	if ( music_internal_playing(music) && music->type == MUS_MID && native_midi_ok ) {
 		/* Just a seek suffices to restart playing */
-		music_internal_position(position);
+		music_internal_position(position, music);
 		return 0;
 	}
 #endif
 
 	/* Note the music we're playing */
-	if ( music_playing ) {
-		music_internal_halt();
-	}
-	music_playing = music;
+	Mix_HaltChannel(channel);
 
 	/* Set the initial volume */
 	if ( music->type != MUS_MOD ) {
-		music_internal_initialize_volume();
+		music_internal_initialize_volume(music);
 	}
 
 	/* Set up for playback */
@@ -904,7 +906,7 @@ static int music_internal_play(Mix_Music *music, double position)
 #ifdef MODPLUG_MUSIC
 	    case MUS_MODPLUG:
 		/* can't set volume until file is loaded, so finally set it now */
-		music_internal_initialize_volume();
+		music_internal_initialize_volume(music);
 		modplug_play(music->data.modplug);
 		break;
 #endif
@@ -951,7 +953,7 @@ static int music_internal_play(Mix_Music *music, double position)
 	    case MUS_MP3:
 		smpeg.SMPEG_enableaudio(music->data.mp3,1);
 		smpeg.SMPEG_enablevideo(music->data.mp3,0);
-		smpeg.SMPEG_play(music_playing->data.mp3);
+		smpeg.SMPEG_play(music->data.mp3);
 		break;
 #endif
 #ifdef MP3_MAD_MUSIC
@@ -969,22 +971,19 @@ skip:
 	/* Set the playback position, note any errors if an offset is used */
 	if ( retval == 0 ) {
 		if ( position > 0.0 ) {
-			if ( music_internal_position(position) < 0 ) {
+			if ( music_internal_position(position, music) < 0 ) {
 				Mix_SetError("Position not implemented for music type");
 				retval = -1;
 			}
 		} else {
-			music_internal_position(0.0);
+			music_internal_position(0.0, music);
 		}
 	}
-
-	/* If the setup failed, we're not playing any music anymore */
-	if ( retval < 0 ) {
-		music_playing = NULL;
-	}
+	_StartMusic(channel, music->fading == MIX_FADING_IN, music);
 	return(retval);
 }
-int Mix_FadeInMusicPos(Mix_Music *music, int loops, int ms, double position)
+
+int Mix_FadeInMusicPos(Mix_Music *music, int loops, int ms, int channel, double position)
 {
 	int retval;
 
@@ -1011,33 +1010,28 @@ int Mix_FadeInMusicPos(Mix_Music *music, int loops, int ms, double position)
 	/* Play the puppy */
 	SDL_LockAudio();
 	/* If the current music is fading out, wait for the fade to complete */
-	while ( music_playing && (music_playing->fading == MIX_FADING_OUT) ) {
-		SDL_UnlockAudio();
-		SDL_Delay(100);
-		SDL_LockAudio();
-	}
-	music_active = 1;
+	_WaitForChannelFade(channel);
 	if (loops == 1) {
 		/* Loop is the number of times to play the audio */
 		loops = 0;
 	}
 	music_loops = loops;
-	retval = music_internal_play(music, position);
+	retval = music_internal_play(music, position, channel);
 	SDL_UnlockAudio();
 
 	return(retval);
 }
-int Mix_FadeInMusic(Mix_Music *music, int loops, int ms)
+int Mix_FadeInMusic(Mix_Music *music, int loops, int ms, int channel)
 {
-	return Mix_FadeInMusicPos(music, loops, ms, 0.0);
+	return Mix_FadeInMusicPos(music, loops, ms, channel, 0.0);
 }
-int Mix_PlayMusic(Mix_Music *music, int loops)
+int Mix_PlayMusic(Mix_Music *music, int loops, int channel)
 {
-	return Mix_FadeInMusicPos(music, loops, 0, 0.0);
+	return Mix_FadeInMusicPos(music, loops, 0, channel, 0.0);
 }
 
 /* Set the playing music position */
-int music_internal_position(double position)
+int music_internal_position(double position, Mix_Music *music_playing)
 {
 	int retval = 0;
 
@@ -1083,18 +1077,21 @@ int music_internal_position(double position)
 	}
 	return(retval);
 }
-int Mix_SetMusicPosition(double position)
+
+int Mix_SetMusicPosition(double position, int channel)
 {
 	int retval;
+	Mix_Music* music;
 
 	SDL_LockAudio();
-	if ( music_playing ) {
-		retval = music_internal_position(position);
+	music = _ChannelPlayingMusic(channel);
+	if ( music ) {
+		retval = music_internal_position(position, music);
 		if ( retval < 0 ) {
 			Mix_SetError("Position not implemented for music type");
 		}
 	} else {
-		Mix_SetError("Music isn't playing");
+		Mix_SetError("No music playing on channel %d", channel);
 		retval = -1;
 	}
 	SDL_UnlockAudio();
@@ -1103,17 +1100,17 @@ int Mix_SetMusicPosition(double position)
 }
 
 /* Set the music's initial volume */
-static void music_internal_initialize_volume(void)
+static void music_internal_initialize_volume(Mix_Music *music_playing)
 {
 	if ( music_playing->fading == MIX_FADING_IN ) {
-		music_internal_volume(0);
+		music_internal_volume(music_playing, 0);
 	} else {
-		music_internal_volume(music_volume);
+		music_internal_volume(music_playing, music_volume);
 	}
 }
 
 /* Set the music volume */
-static void music_internal_volume(int volume)
+static void music_internal_volume(Mix_Music *music_playing, int volume)
 {
 	switch (music_playing->type) {
 #ifdef CMD_MUSIC
@@ -1183,9 +1180,10 @@ static void music_internal_volume(int volume)
 		break;
 	}
 }
-int Mix_VolumeMusic(int volume)
+int Mix_VolumeMusic(int volume, int channel)
 {
 	int prev_volume;
+	Mix_Music* music_playing;
 
 	prev_volume = music_volume;
 	if ( volume < 0 ) {
@@ -1196,15 +1194,16 @@ int Mix_VolumeMusic(int volume)
 	}
 	music_volume = volume;
 	SDL_LockAudio();
+	music_playing = _ChannelPlayingMusic(channel);
 	if ( music_playing ) {
-		music_internal_volume(music_volume);
+		music_internal_volume(music_playing, music_volume);
 	}
 	SDL_UnlockAudio();
 	return(prev_volume);
 }
 
 /* Halt playing of music */
-static void music_internal_halt(void)
+static void music_internal_halt(Mix_Music * music_playing)
 {
 	switch (music_playing->type) {
 #ifdef CMD_MUSIC
@@ -1276,23 +1275,31 @@ static void music_internal_halt(void)
 
 skip:
 	music_playing->fading = MIX_NO_FADING;
-	music_playing = NULL;
 }
-int Mix_HaltMusic(void)
+
+int Mix_HaltMusic(Mix_Music *music)
 {
-	SDL_LockAudio();
-	if ( music_playing ) {
-		music_internal_halt();
+	if (music){
+		SDL_LockAudio();
+		if ( _MusicIsPlaying(music)) {
+			music_internal_halt(music);
+		}
+		SDL_UnlockAudio();
 	}
-	SDL_UnlockAudio();
 
 	return(0);
 }
 
 /* Progressively stop the music */
-int Mix_FadeOutMusic(int ms)
+int Mix_FadeOutMusic(int ms, int channel)
 {
 	int retval = 0;
+	Mix_Music* music_playing = _ChannelPlayingMusic(channel);
+
+	if (!music_playing){
+		SDL_SetError("No music playing on channel %d", channel);
+		return 0;
+	}
 
 	if ( ms_per_step == 0 ) {
 		SDL_SetError("Audio device hasn't been opened");
@@ -1300,27 +1307,27 @@ int Mix_FadeOutMusic(int ms)
 	}
 
 	if (ms <= 0) {  /* just halt immediately. */
-		Mix_HaltMusic();
+		Mix_HaltMusic(music_playing);
 		return 1;
 	}
 
 	SDL_LockAudio();
 	if ( music_playing) {
-                int fade_steps = (ms + ms_per_step - 1)/ms_per_step;
-                if ( music_playing->fading == MIX_NO_FADING ) {
-	        	music_playing->fade_step = 0;
-                } else {
-                        int step;
-                        int old_fade_steps = music_playing->fade_steps;
-                        if ( music_playing->fading == MIX_FADING_OUT ) {
-                                step = music_playing->fade_step;
-                        } else {
-                                step = old_fade_steps
-                                        - music_playing->fade_step + 1;
-                        }
-                        music_playing->fade_step = (step * fade_steps)
-                                / old_fade_steps;
-                }
+        int fade_steps = (ms + ms_per_step - 1)/ms_per_step;
+        if ( music_playing->fading == MIX_NO_FADING ) {
+	    	music_playing->fade_step = 0;
+        } else {
+			int step;
+			int old_fade_steps = music_playing->fade_steps;
+			if ( music_playing->fading == MIX_FADING_OUT ) {
+					step = music_playing->fade_step;
+			} else {
+					step = old_fade_steps
+							- music_playing->fade_step + 1;
+			}
+			music_playing->fade_step = (step * fade_steps)
+					/ old_fade_steps;
+        }
 		music_playing->fading = MIX_FADING_OUT;
 		music_playing->fade_steps = fade_steps;
 		retval = 1;
@@ -1330,11 +1337,13 @@ int Mix_FadeOutMusic(int ms)
 	return(retval);
 }
 
-Mix_Fading Mix_FadingMusic(void)
+Mix_Fading Mix_FadingMusic(int channel)
 {
 	Mix_Fading fading = MIX_NO_FADING;
+	Mix_Music* music_playing;
 
 	SDL_LockAudio();
+	music_playing = _ChannelPlayingMusic(channel);
 	if ( music_playing ) {
 		fading = music_playing->fading;
 	}
@@ -1343,29 +1352,13 @@ Mix_Fading Mix_FadingMusic(void)
 	return(fading);
 }
 
-/* Pause/Resume the music stream */
-void Mix_PauseMusic(void)
+void Mix_RewindMusic(int channel)
 {
-	music_active = 0;
-}
-
-void Mix_ResumeMusic(void)
-{
-	music_active = 1;
-}
-
-void Mix_RewindMusic(void)
-{
-	Mix_SetMusicPosition(0.0);
-}
-
-int Mix_PausedMusic(void)
-{
-	return (music_active == 0);
+	Mix_SetMusicPosition(0.0, channel);
 }
 
 /* Check the status of the music */
-static int music_internal_playing()
+static int music_internal_playing(Mix_Music *music_playing)
 {
 	int playing = 1;
 
@@ -1462,13 +1455,15 @@ static int music_internal_playing()
 skip:
 	return(playing);
 }
-int Mix_PlayingMusic(void)
+int Mix_PlayingMusic(int channel)
 {
 	int playing = 0;
+	Mix_Music* music_playing;
 
 	SDL_LockAudio();
+	music_playing = _ChannelPlayingMusic(channel);
 	if ( music_playing ) {
-		playing = music_loops || music_internal_playing();
+		playing = music_loops || music_internal_playing(music_playing);
 	}
 	SDL_UnlockAudio();
 
@@ -1476,9 +1471,9 @@ int Mix_PlayingMusic(void)
 }
 
 /* Set the external music playback command */
-int Mix_SetMusicCMD(const char *command)
+int Mix_SetMusicCMD(const char *command, int channel)
 {
-	Mix_HaltMusic();
+	Mix_HaltMusic(_ChannelPlayingMusic(channel));
 	if ( music_cmd ) {
 		SDL_free(music_cmd);
 		music_cmd = NULL;
@@ -1509,9 +1504,10 @@ int Mix_GetSynchroValue(void)
 /* Uninitialize the music players */
 void close_music(void)
 {
-	Mix_HaltMusic();
+	_HaltAllMusic();
 #ifdef CMD_MUSIC
-	Mix_SetMusicCMD(NULL);
+	/* FIXME: Halt on all channels */
+	Mix_SetMusicCMD(NULL, 0);
 #endif
 #ifdef MODPLUG_MUSIC
 	modplug_exit();
