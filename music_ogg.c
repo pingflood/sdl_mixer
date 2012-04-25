@@ -185,12 +185,7 @@ int OGG_playAudio(OGG_music *music, Uint8 *snd, int len)
 		if ( mixable > music->len_available ) {
 			mixable = music->len_available;
 		}
-		if ( music->volume == MIX_MAX_VOLUME ) {
-			memcpy(snd, music->snd_available, mixable);
-		} else {
-			SDL_MixAudio(snd, music->snd_available, mixable,
-			                              music->volume);
-		}
+		memcpy(snd, music->snd_available, mixable);
 		music->len_available -= mixable;
 		music->snd_available += mixable;
 		len -= mixable;
