@@ -87,6 +87,7 @@ OGG_music *OGG_new_RW(SDL_RWops *rw, int freerw)
 	music = (OGG_music *)SDL_malloc(sizeof *music);
 	if ( music ) {
 		/* Initialize the music structure */
+		double total_time;
 		memset(music, 0, (sizeof *music));
 		music->rw = rw;
 		music->freerw = freerw;
@@ -101,6 +102,12 @@ OGG_music *OGG_new_RW(SDL_RWops *rw, int freerw)
 			}
 			SDL_SetError("Not an Ogg Vorbis audio stream");
 			return(NULL);
+		}
+		total_time = ov_time_total(&music->vf, -1);
+		if ( total_time == OV_EINVAL ) {
+			music->duration_ms = -1;
+		} else {
+			music->duration_ms = (Sint32)(total_time * 1000.0 + 0.5);
 		}
 	} else {
 		if ( freerw ) {

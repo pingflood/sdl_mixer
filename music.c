@@ -133,6 +133,7 @@ struct _Mix_Music {
 	Mix_Fading fading;
 	int fade_step;
 	int fade_steps;
+	Sint32 duration_ms;
 	int error;
 };
 #ifdef MID_MUSIC
@@ -544,6 +545,7 @@ Mix_Music *Mix_LoadMUS(const char *file)
 			return(NULL);
 		}
 		music->error = 0;
+		music->duration_ms = -1;
 		music->type = MUS_CMD;
 		music->data.cmd = MusicCMD_LoadSong(music_cmd, file);
 		if ( music->data.cmd == NULL ) {
@@ -630,6 +632,7 @@ Mix_Music *Mix_LoadMUSType_RW(SDL_RWops *rw, Mix_MusicType type, int freesrc)
 		return NULL;
 	}
 	music->error = 0;
+	music->duration_ms = -1;
 
 	switch (type) {
 #ifdef WAV_MUSIC
@@ -649,6 +652,8 @@ Mix_Music *Mix_LoadMUSType_RW(SDL_RWops *rw, Mix_MusicType type, int freesrc)
 		}
 		if (music->data.wave == NULL) {
 			music->error = 1;
+		} else {
+			music->duration_ms = music->data.wave->duration_ms;
 		}
 		break;
 #endif
@@ -658,6 +663,8 @@ Mix_Music *Mix_LoadMUSType_RW(SDL_RWops *rw, Mix_MusicType type, int freesrc)
 		music->data.ogg = OGG_new_RW(rw, freesrc);
 		if ( music->data.ogg == NULL ) {
 			music->error = 1;
+		} else {
+			music->duration_ms = music->data.ogg->duration_ms;
 		}
 		break;
 #endif
@@ -667,6 +674,8 @@ Mix_Music *Mix_LoadMUSType_RW(SDL_RWops *rw, Mix_MusicType type, int freesrc)
 		music->data.flac = FLAC_new_RW(rw, freesrc);
 		if ( music->data.flac == NULL ) {
 			music->error = 1;
+		} else {
+			music->duration_ms = music->data.flac->duration_ms;
 		}
 		break;
 #endif
@@ -681,6 +690,7 @@ Mix_Music *Mix_LoadMUSType_RW(SDL_RWops *rw, Mix_MusicType type, int freesrc)
 				music->error = 1;
 			} else {
 				smpeg.SMPEG_actualSpec(music->data.mp3, &used_mixer);
+				music->duration_ms = info.total_time * 1000;
 			}
 		} else {
 			music->error = 1;
@@ -724,6 +734,8 @@ Mix_Music *Mix_LoadMUSType_RW(SDL_RWops *rw, Mix_MusicType type, int freesrc)
 			if ( music->data.midi == NULL ) {
 				Mix_SetError("%s", Timidity_Error());
 				music->error = 1;
+			} else {
+				music->duration_ms = music->data.midi->duration_ms;
 			}
 		} else {
 			Mix_SetError("%s", Timidity_Error());
@@ -741,6 +753,7 @@ Mix_Music *Mix_LoadMUSType_RW(SDL_RWops *rw, Mix_MusicType type, int freesrc)
 			music->data.modplug = modplug_new_RW(rw, freesrc);
 			if ( music->data.modplug ) {
 				music->error = 0;
+				music->duration_ms = music->data.modplug->duration_ms;
 			}
 		}
 #endif
@@ -874,6 +887,13 @@ Mix_MusicType Mix_GetMusicType(const Mix_Music *music)
 		type = music->type;
 	}
 	return(type);
+}
+
+/* Find out the total duration (in milliseconds) of a mixer music.
+ */
+Sint32 Mix_GetMusicDuration(const Mix_Music* music)
+{
+    return music->duration_ms;
 }
 
 /* Play a music chunk.  Returns 0, or -1 if there was an error.
