@@ -31,6 +31,7 @@ typedef struct {
 	long  start;
 	long  stop;
 	int playing;
+	Sint32 duration_ms;
 	SDL_AudioCVT cvt;
 } WAVStream;
 

@@ -375,6 +375,15 @@ FLAC_music *FLAC_new_RW(SDL_RWops *rw, int freerw)
 			}
 			return NULL;
 		}
+
+		FLAC__uint64 total_samples = music->flac_data.total_samples;
+		unsigned sample_rate = music->flac_data.sample_rate;
+		if (sample_rate == 0 || total_samples == 0) {
+			music->duration_ms = -1;
+		} else {
+			music->duration_ms = total_samples / sample_rate * 1000;
+			music->duration_ms += (total_samples % sample_rate) * 1000 / sample_rate;
+		}
 	} else {
 		SDL_OutOfMemory();
 		if (freerw) {
