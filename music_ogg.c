@@ -103,7 +103,7 @@ OGG_music *OGG_new_RW(SDL_RWops *rw, int freerw)
 			SDL_SetError("Not an Ogg Vorbis audio stream");
 			return(NULL);
 		}
-		total_time = ov_time_total(&music->vf, -1);
+		total_time = vorbis.ov_time_total(&music->vf, -1);
 		if ( total_time == OV_EINVAL ) {
 			music->duration_ms = -1;
 		} else {
