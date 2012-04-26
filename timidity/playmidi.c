@@ -50,10 +50,6 @@ FLOAT_T
 int32 drumchannels=DEFAULT_DRUMCHANNELS;
 int adjust_panning_immediately=0;
 
-struct _MidiSong {
-	int32 samples;
-	MidiEvent *events;
-};
 static int midi_playing = 0;
 static int32 lost_notes, cut_notes;
 static int32 *buffer_pointer;
@@ -1696,6 +1692,10 @@ MidiSong *Timidity_LoadSong_RW(SDL_RWops *rw, int freerw)
   if (!song->events) {
     free(song);
     song = NULL;
+  } else {
+      MidiEvent *last_event = &song->events[events - 1];
+      song->duration_ms = (last_event->time / play_mode->rate) * 1000;
+      song->duration_ms += (last_event->time % play_mode->rate) * 1000 / play_mode->rate;
   }
   return(song);
 }

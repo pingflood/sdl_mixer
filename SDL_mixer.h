@@ -195,6 +195,15 @@ extern DECLSPEC const char * SDLCALL Mix_GetMusicDecoder(int index);
 */
 extern DECLSPEC Mix_MusicType SDLCALL Mix_GetMusicType(const Mix_Music *music);
 
+/* Find out the total duration (in milliseconds) of a mixer music. The accuracy
+ * of the returned value depends on the specific decoder backend that is used
+ * for the specified mixer music, and is not guaranteed to be accurate.
+ *
+ * Returns a negative value if the duration cannot be determined (which happens
+ * when the backend does not support this at all.)
+ */
+extern DECLSPEC Sint32 SDLCALL Mix_GetMusicDuration(const Mix_Music* music);
+
 /* Set a function that is called after all mixing is performed.
    This can be used to provide real-time visual display of the audio stream
    or add a custom mixer filter for the stream data.

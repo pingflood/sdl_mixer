@@ -6,7 +6,13 @@
     it under the terms of the Perl Artistic License, available in COPYING.
  */
 
-typedef struct _MidiSong MidiSong;
+#include "readmidi.h"
+
+typedef struct {
+	int32 samples;
+	Sint32 duration_ms;
+	MidiEvent *events;
+} MidiSong;
 
 extern int Timidity_Init(int rate, int format, int channels, int samples);
 extern const char *Timidity_Error(void);
