@@ -6,10 +6,7 @@
     it under the terms of the Perl Artistic License, available in COPYING.
  */
 
-typedef struct {
-  int32 time;
-  uint8 channel, type, a, b;
-} MidiEvent;
+#include "readmidi.h"
 
 /* Midi events */
 #define ME_NONE 	0

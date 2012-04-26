@@ -147,6 +147,19 @@ WAVStream *WAVStream_LoadSong_RW(SDL_RWops *rw, const char *magic, int freerw)
 		SDL_BuildAudioCVT(&wave->cvt,
 			wavespec.format, wavespec.channels, wavespec.freq,
 			mixer.format, mixer.channels, mixer.freq);
+
+		int bitsPerSample;
+		switch (wavespec.format) {
+			case AUDIO_U8:
+			case AUDIO_S8:
+				bitsPerSample = 8;
+				break;
+			default:
+				bitsPerSample = 16;
+		}
+		wave->duration_ms = ((wave->stop - wave->start) * 8.0)
+		                  / (wavespec.freq * wavespec.channels * bitsPerSample)
+		                  * 1000.0;
 	} else {
 		SDL_OutOfMemory();
 		if ( freerw ) {
