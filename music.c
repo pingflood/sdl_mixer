@@ -1084,6 +1084,9 @@ int Mix_FadeInMusicPosCh(Mix_Music *music, int loops, int ms, int channel, doubl
 	retval = music_internal_play(music, position, channel);
 	SDL_UnlockAudio();
 
+	if (retval == 0) {
+		return channel;
+	}
 	return(retval);
 }
 int Mix_FadeInMusicPos(Mix_Music *music, int loops, int ms, double position)
