@@ -87,6 +87,7 @@ extern SDL_bool _MusicIsPlaying(Mix_Music * song);
 extern void *Mix_DoEffects(int chan, void *snd, int len);
 extern void _WaitForChannelFade(int channel);
 extern Mix_Music* _ChannelPlayingMusic(int channel);
+extern int get_available_channel(void);
 extern void _HaltAllMusic(void);
 extern void _StartMusic(int channel, int is_fading, Mix_Music* music);
 extern void _ClearMusic(Mix_Music * song);
@@ -1060,15 +1061,24 @@ int Mix_FadeInMusicPosCh(Mix_Music *music, int loops, int ms, int channel, doubl
 
 	/* Play the puppy */
 	SDL_LockAudio();
-	/* If the current music is fading out, wait for the fade to complete */
-	if (channel == MUSIC_COMPAT_MAGIC_CHANNEL) {
-		while ( music_compat_stream && (music_compat_stream->fading == MIX_FADING_OUT) ) {
-			SDL_UnlockAudio();
-			SDL_Delay(100);
-			SDL_LockAudio();
+	/* If specified channel is -1, find a free channel to play on. */
+	if (channel == -1) {
+		channel = get_available_channel();
+		if (channel == -1) {
+			Mix_SetError("No free channels available");
+			return -1;
 		}
 	} else {
-		_WaitForChannelFade(channel);
+		/* If the current music is fading out, wait for the fade to complete */
+		if (channel == MUSIC_COMPAT_MAGIC_CHANNEL) {
+			while ( music_compat_stream && (music_compat_stream->fading == MIX_FADING_OUT) ) {
+				SDL_UnlockAudio();
+				SDL_Delay(100);
+				SDL_LockAudio();
+			}
+		} else {
+			_WaitForChannelFade(channel);
+		}
 	}
 	if (loops == 1) {
 		/* Loop is the number of times to play the audio */
