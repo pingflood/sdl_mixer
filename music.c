@@ -241,14 +241,6 @@ static int music_halt_or_loop (Mix_Music * music_playing, int channel)
 		else 
 		{
 			music_internal_halt(music_playing);
-			if (channel == MUSIC_COMPAT_MAGIC_CHANNEL) {
-				if (music_compat_finished_hook) {
-					music_compat_finished_hook();
-				}
-			}
-			else if (music_finished_hook) {
-				music_finished_hook(music_playing, channel);
-			}
 			return 0;
 		}
 	}
@@ -281,13 +273,6 @@ void music_mixer(void *udata, Mix_Music * music_playing, Uint8 *master_stream, i
 		} else {
 			if ( music_playing->fading == MIX_FADING_OUT ) {
 				music_internal_halt(music_playing);
-				if (channel == MUSIC_COMPAT_MAGIC_CHANNEL) {
-					if ( music_compat_finished_hook ) {
-						music_compat_finished_hook();
-					}
-				} else if ( music_finished_hook ) {
-					music_finished_hook(music_playing, channel);
-				}
 				return;
 			}
 			music_playing->fading = MIX_NO_FADING;
@@ -295,8 +280,19 @@ void music_mixer(void *udata, Mix_Music * music_playing, Uint8 *master_stream, i
 	}
 	
 	music_halt_or_loop(music_playing, channel);
-	if (!music_internal_playing(music_playing))
+	if (!music_internal_playing(music_playing)) {
+		SDL_LockAudio();
+		_ClearMusic(music_playing);
+		SDL_UnlockAudio();
+		if (channel == MUSIC_COMPAT_MAGIC_CHANNEL) {
+			if ( music_compat_finished_hook ) {
+				music_compat_finished_hook();
+			}
+		} else if ( music_finished_hook ) {
+			music_finished_hook(music_playing, channel);
+		}
 		return;
+	}
 	
 	stream = (Uint8*) malloc(len);
 	
