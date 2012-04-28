@@ -129,6 +129,22 @@ static int num_decoders = 0;
 extern char* soundfont_paths;
 #endif
 
+/* Finds an unused channel and returns it. Returns -1 if there's none
+ * available.
+ */
+int get_available_channel(void)
+{
+	int i;
+	for ( i=reserved_channels; i<num_channels; ++i ) {
+		if ( mix_channel[i].playing <= 0 )
+			break;
+	}
+	if ( i == num_channels ) {
+		return -1;
+	}
+	return i;
+}
+
 void _HaltAllMusic(void)
 {
 	int i;
@@ -974,16 +990,10 @@ int _Mix_SetupChunk(int which, Mix_Chunk* chunk, int loops, int ticks, int fade_
 	{
 		/* If which is -1, play on the first free channel */
 		if ( which == -1 ) {
-			int i;
-			for ( i=reserved_channels; i<num_channels; ++i ) {
-				if ( mix_channel[i].playing <= 0 )
-					break;
-			}
-			if ( i == num_channels ) {
+			which = get_available_channel();
+			if ( which == -1 ) {
 				Mix_SetError("No free channels available");
 				which = -1;
-			} else {
-				which = i;
 			}
 		}
 
