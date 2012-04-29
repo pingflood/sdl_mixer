@@ -52,9 +52,6 @@
 #define CREA		0x61657243		/* "Crea" */
 #define FLAC		0x43614C66		/* "fLaC" */
 
-/* See music.c. */
-#define MUSIC_COMPAT_MAGIC_CHANNEL -666
-
 static int audio_opened = 0;
 static SDL_AudioSpec mixer;
 
