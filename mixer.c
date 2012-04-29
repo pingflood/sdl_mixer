@@ -39,6 +39,7 @@
 #include "dynamic_mp3.h"
 #include "dynamic_ogg.h"
 #include "dynamic_fluidsynth.h"
+#include "mixer.h"
 #include "music.h"
 
 #define __MIX_INTERNAL_EFFECT__
@@ -54,40 +55,6 @@
 
 static int audio_opened = 0;
 static SDL_AudioSpec mixer;
-
-typedef struct _Mix_effectinfo
-{
-	Mix_EffectFunc_t callback;
-	Mix_EffectDone_t done_callback;
-	void *udata;
-	struct _Mix_effectinfo *next;
-} effect_info;
-
-typedef struct {
-	Mix_Chunk *chunk;
-	Uint8 *samples;
-	Uint32 start_time;
-	int fade_volume;
-	Uint32 fade_length;
-	Uint32 ticks_fade;
-} Mix_Sound;
-
-typedef struct {
-	SDL_bool is_music;
-	union{
-		Mix_Sound *sound;
-		Mix_Music *music;
-	};
-	int playing;
-	int paused;
-	int volume;
-	int fade_volume_reset;
-	int looping;
-	int tag;
-	Uint32 expire;
-	Mix_Fading fading;
-	effect_info *effects;
-} _Mix_Channel;
 
 static _Mix_Channel *mix_channel = NULL;
 /* For the old-style, single-channel music API. */
@@ -310,7 +277,7 @@ static void _Mix_channel_done_playing(int channel)
 	_Mix_remove_all_effects(channel, &mix_channel[channel].effects);
 }
 
-void _StartMusic(int which, int is_fading, Mix_Music* music)
+_Mix_Channel *_StartMusic(int which, int is_fading, Mix_Music* music)
 {
 	_Mix_Channel* channel = NULL;
 	/* Lock the mixer while modifying the playing channels */
@@ -346,6 +313,7 @@ void _StartMusic(int which, int is_fading, Mix_Music* music)
 		}
 	}
 	SDL_UnlockAudio();
+	return channel;
 }
 
 void _ClearMusic(Mix_Music * song)
