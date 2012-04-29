@@ -30,6 +30,7 @@
 #include "SDL_timer.h"
 
 #include "SDL_mixer.h"
+#include "music.h"
 #include "mixer.h"
 
 #ifdef CMD_MUSIC
@@ -73,12 +74,7 @@ static SDL_AudioSpec used_mixer;
 #endif
 
 
-/* We treat music played through the old API, which doesn't support channels,
- * in a special manner: we use a non-existing, magic channel number.  This is
- * an evil hack of course. */
 static Mix_Music* music_compat_stream = NULL;
-#define MUSIC_COMPAT_MAGIC_CHANNEL -666
-
 static int volatile music_stopped = 0;
 static int music_loops = 0;
 static char *music_cmd = NULL;
