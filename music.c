@@ -1026,6 +1026,7 @@ skip:
 int Mix_FadeInMusicPosCh(Mix_Music *music, int loops, int ms, int channel, double position)
 {
 	int retval;
+	int channel_to_use = channel;
 
 	if ( ms_per_step == 0 ) {
 		SDL_SetError("Audio device hasn't been opened");
@@ -1051,8 +1052,8 @@ int Mix_FadeInMusicPosCh(Mix_Music *music, int loops, int ms, int channel, doubl
 	SDL_LockAudio();
 	/* If specified channel is -1, find a free channel to play on. */
 	if (channel == -1) {
-		channel = get_available_channel();
-		if (channel == -1) {
+		channel_to_use = get_available_channel();
+		if (channel_to_use == -1) {
 			Mix_SetError("No free channels available");
 			return -1;
 		}
@@ -1073,10 +1074,10 @@ int Mix_FadeInMusicPosCh(Mix_Music *music, int loops, int ms, int channel, doubl
 		loops = 0;
 	}
 	music_loops = loops;
-	retval = music_internal_play(music, position, channel);
+	retval = music_internal_play(music, position, channel_to_use);
 	SDL_UnlockAudio();
 
-	if (retval == 0) {
+	if ((retval == 0) && (channel == -1)) {
 		return channel;
 	}
 	return(retval);
