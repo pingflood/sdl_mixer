@@ -261,7 +261,12 @@ mad_getSamples(mad_data *mp3_mad, Uint8 *stream, int len) {
 	  num_bytes = bytes_remaining;
 	}
 
-	memcpy(out, mp3_mad->output_buffer + mp3_mad->output_begin, num_bytes);
+	if (mp3_mad->volume == MIX_MAX_VOLUME) {
+	  memcpy(out, mp3_mad->output_buffer + mp3_mad->output_begin, num_bytes);
+	} else {
+	  SDL_MixAudio(out, mp3_mad->output_buffer + mp3_mad->output_begin,
+				   num_bytes, mp3_mad->volume);
+	}
 	out += num_bytes;
 	mp3_mad->output_begin += num_bytes;
 	bytes_remaining -= num_bytes;
