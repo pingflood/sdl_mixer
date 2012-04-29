@@ -1060,6 +1060,7 @@ int Mix_FadeInMusicPosCh(Mix_Music *music, int loops, int ms, int channel, doubl
 	} else {
 		/* If the current music is fading out, wait for the fade to complete */
 		if (channel == MUSIC_COMPAT_MAGIC_CHANNEL) {
+			music_compat_stream = music;
 			while ( music_compat_stream && (music_compat_stream->fading == MIX_FADING_OUT) ) {
 				SDL_UnlockAudio();
 				SDL_Delay(100);
@@ -1100,7 +1101,6 @@ int Mix_PlayMusicCh(Mix_Music *music, int loops, int channel)
 }
 int Mix_PlayMusic(Mix_Music *music, int loops)
 {
-	music_compat_stream = music;
 	return Mix_PlayMusicCh(music, loops, MUSIC_COMPAT_MAGIC_CHANNEL);
 }
 
