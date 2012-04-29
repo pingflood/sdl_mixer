@@ -39,6 +39,7 @@
 #include "dynamic_mp3.h"
 #include "dynamic_ogg.h"
 #include "dynamic_fluidsynth.h"
+#include "music.h"
 
 #define __MIX_INTERNAL_EFFECT__
 #include "effects_internal.h"
@@ -108,13 +109,7 @@ static void *mix_postmix_data = NULL;
 /* rcg07062001 callback to alert when channels are done playing. */
 static void (*channel_done_callback)(int channel) = NULL;
 
-/* Music function declarations */
-extern int open_music(SDL_AudioSpec *mixer);
-extern void close_music(void);
-
 /* Support for user defined music functions, plus the default one */
-extern int volatile music_active;
-extern void music_mixer(void *udata, Mix_Music * music_playing, Uint8 *stream, int len, int channel);
 static void (*mix_music)(void *udata, Mix_Music * music_playing, Uint8 *stream, int len, int channel) = music_mixer;
 static void (*mix_compat_music)(void *udata, Uint8 *stream, int len) = NULL;
 static void *music_data = NULL;
