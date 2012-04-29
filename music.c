@@ -30,6 +30,7 @@
 #include "SDL_timer.h"
 
 #include "SDL_mixer.h"
+#include "mixer.h"
 
 #ifdef CMD_MUSIC
 #include "music_cmd.h"
@@ -82,15 +83,6 @@ static int volatile music_stopped = 0;
 static int music_loops = 0;
 static char *music_cmd = NULL;
 static int music_volume = MIX_MAX_VOLUME;
-
-extern SDL_bool _MusicIsPlaying(Mix_Music * song);
-extern void *Mix_DoEffects(int chan, void *snd, int len);
-extern void _WaitForChannelFade(int channel);
-extern Mix_Music* _ChannelPlayingMusic(int channel);
-extern int get_available_channel(void);
-extern void _HaltAllMusic(void);
-extern void _StartMusic(int channel, int is_fading, Mix_Music* music);
-extern void _ClearMusic(Mix_Music * song);
 
 struct _Mix_Music {
 	Mix_MusicType type;
