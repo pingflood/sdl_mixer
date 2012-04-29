@@ -1085,7 +1085,7 @@ int Mix_FadeInMusicPosCh(Mix_Music *music, int loops, int ms, int channel, doubl
 	SDL_UnlockAudio();
 
 	if ((retval == 0) && (channel == -1)) {
-		return channel;
+		return channel_to_use;
 	}
 	return(retval);
 }
