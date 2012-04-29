@@ -76,7 +76,6 @@ static SDL_AudioSpec used_mixer;
 
 static Mix_Music* music_compat_stream = NULL;
 static int volatile music_stopped = 0;
-static int music_loops = 0;
 static char *music_cmd = NULL;
 static int music_volume = MIX_MAX_VOLUME;
 
@@ -119,6 +118,7 @@ struct _Mix_Music {
 		FLAC_music *flac;
 #endif
 	} data;
+	_Mix_Channel* channel;
 	Mix_Fading fading;
 	int fade_step;
 	int fade_steps;
@@ -213,15 +213,18 @@ static int music_halt_or_loop (Mix_Music * music_playing, int channel)
 #ifdef USE_NATIVE_MIDI
 		/* Native MIDI handles looping internally */
 		if (music_playing->type == MUS_MID && native_midi_ok) {
-			music_loops = 0;
+			music_playing->channel->music_looping = 0;
 		}
 #endif
 
 		/* Restart music if it has to loop at a high level */
-		if (music_loops)
+		if (music_playing->channel && music_playing->channel->music_looping != 0)
 		{
 			Mix_Fading current_fade;
-			--music_loops;
+			/* Count the loop only if it's not looping forever. */
+			if (music_playing->channel->music_looping != -1) {
+				--music_playing->channel->music_looping;
+			}
 			current_fade = music_playing->fading;
 			music_internal_play(music_playing, 0.0, channel);
 			music_playing->fading = current_fade;
@@ -957,7 +960,7 @@ static int music_internal_play(Mix_Music *music, double position, int channel)
 	    case MUS_MID:
 #ifdef USE_NATIVE_MIDI
 		if ( native_midi_ok ) {
-			native_midi_start(music->data.nativemidi, music_loops);
+			native_midi_start(music->data.nativemidi, 0);
 			goto skip;
 		}
 #endif
@@ -1015,7 +1018,7 @@ skip:
 			music_internal_position(0.0, music);
 		}
 	}
-	_StartMusic(channel, music->fading == MIX_FADING_IN, music);
+	music->channel = _StartMusic(channel, music->fading == MIX_FADING_IN, music);
 	return(retval);
 }
 
@@ -1066,12 +1069,19 @@ int Mix_FadeInMusicPosCh(Mix_Music *music, int loops, int ms, int channel, doubl
 			_WaitForChannelFade(channel);
 		}
 	}
-	if (loops == 1) {
-		/* Loop is the number of times to play the audio */
-		loops = 0;
+	if (loops < -1) {
+		loops = -1;
 	}
-	music_loops = loops;
+	/* We're going to play this now, so already count the first loop. */
+	/* FIXME? The docs say that 0 plays the music 0 times. However, SDL_mixer
+	 * always played it once when requesting 0 loops. */
+	if (loops > 0) {
+		--loops;
+	}
 	retval = music_internal_play(music, position, channel_to_use);
+	if (music->channel) {
+		music->channel->music_looping = loops;
+	}
 	SDL_UnlockAudio();
 
 	if ((retval == 0) && (channel == -1)) {
@@ -1366,6 +1376,7 @@ static void music_internal_halt(Mix_Music * music_playing)
 
 skip:
 	music_playing->fading = MIX_NO_FADING;
+	music_playing->channel = NULL;
 }
 
 int Mix_HaltMusicCh(Mix_Music *music)
@@ -1612,7 +1623,8 @@ int Mix_PlayingMusicCh(int channel)
 		music_playing = _ChannelPlayingMusic(channel);
 	}
 	if ( music_playing ) {
-		playing = music_loops || music_internal_playing(music_playing);
+		playing = (music_playing->channel && music_playing->channel->music_looping)
+		          || music_internal_playing(music_playing);
 	}
 	SDL_UnlockAudio();
 
