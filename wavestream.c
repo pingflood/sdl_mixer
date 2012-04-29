@@ -217,7 +217,12 @@ int WAVStream_PlaySome(WAVStream *music, Uint8 *stream, int len)
 			}
 			music->cvt.len = original_len;
 			SDL_ConvertAudio(&music->cvt);
-			SDL_MixAudio(stream, music->cvt.buf, music->cvt.len_cvt, wavestream_volume);
+			if (wavestream_volume == MIX_MAX_VOLUME) {
+				memcpy(stream, music->cvt.buf, music->cvt.len_cvt);
+			} else {
+				memset(stream, 0, music->cvt.len_cvt);
+				SDL_MixAudio(stream, music->cvt.buf, music->cvt.len_cvt, wavestream_volume);
+			}
 		} else {
 			Uint8 *data;
 			if ( (music->stop - pos) < len ) {
@@ -228,7 +233,12 @@ int WAVStream_PlaySome(WAVStream *music, Uint8 *stream, int len)
 			if (data)
 			{		
 				SDL_RWread(music->rw, data, len, 1);
-				SDL_MixAudio(stream, data, len, wavestream_volume);
+				if (wavestream_volume == MIX_MAX_VOLUME) {
+					memcpy(stream, data, len);
+				} else {
+					memset(stream, 0, len);
+					SDL_MixAudio(stream, data, len, wavestream_volume);
+				}
 				SDL_stack_free(data);
 			}	
 		}
