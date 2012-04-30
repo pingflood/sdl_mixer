@@ -283,7 +283,8 @@ void music_mixer(void *udata, Mix_Music * music_playing, Uint8 *master_stream, i
 		return;
 	}
 	
-	stream = (Uint8*) malloc(len);
+	/* Initially filled with silence. */
+	stream = (Uint8*) calloc(len, sizeof(Uint8));
 	
 	switch (music_playing->type) {
 #ifdef CMD_MUSIC
@@ -342,7 +343,6 @@ void music_mixer(void *udata, Mix_Music * music_playing, Uint8 *master_stream, i
 #endif
 #ifdef MP3_MUSIC
 	case MUS_MP3:
-		memset(stream, 0, len);
 		left = (len - smpeg.SMPEG_playAudio(music_playing->data.mp3, stream, len));
 		break;
 #endif
