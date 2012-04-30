@@ -123,9 +123,8 @@ WAVStream *WAVStream_LoadSong_RW(SDL_RWops *rw, const char *magic, int freerw)
 		}
 		return(NULL);
 	}
-	wave = (WAVStream *)SDL_malloc(sizeof *wave);
+	wave = (WAVStream *)SDL_calloc(sizeof *wave, sizeof *wave);
 	if ( wave ) {
-		memset(wave, 0, (sizeof *wave));
 		wave->freerw = freerw;
 		if ( strcmp(magic, "RIFF") == 0 ) {
 			wave->rw = LoadWAVStream(rw, &wavespec,
@@ -220,7 +219,6 @@ int WAVStream_PlaySome(WAVStream *music, Uint8 *stream, int len)
 			if (wavestream_volume == MIX_MAX_VOLUME) {
 				memcpy(stream, music->cvt.buf, music->cvt.len_cvt);
 			} else {
-				memset(stream, 0, music->cvt.len_cvt);
 				SDL_MixAudio(stream, music->cvt.buf, music->cvt.len_cvt, wavestream_volume);
 			}
 		} else {
@@ -236,7 +234,6 @@ int WAVStream_PlaySome(WAVStream *music, Uint8 *stream, int len)
 				if (wavestream_volume == MIX_MAX_VOLUME) {
 					memcpy(stream, data, len);
 				} else {
-					memset(stream, 0, len);
 					SDL_MixAudio(stream, data, len, wavestream_volume);
 				}
 				SDL_stack_free(data);
