@@ -272,9 +272,7 @@ void music_mixer(void *udata, Mix_Music * music_playing, Uint8 *master_stream, i
 	
 	music_halt_or_loop(music_playing, channel);
 	if (!music_internal_playing(music_playing)) {
-		SDL_LockAudio();
 		_ClearMusic(music_playing);
-		SDL_UnlockAudio();
 		if (channel == MUSIC_COMPAT_MAGIC_CHANNEL) {
 			if ( music_compat_finished_hook ) {
 				music_compat_finished_hook();
