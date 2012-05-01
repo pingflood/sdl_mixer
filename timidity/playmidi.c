@@ -132,7 +132,7 @@ static void reset_midi(void)
 
 static void select_sample(int v, Instrument *ip)
 {
-  int32 f, cdiff, diff, midfreq;
+  int32 f, cdiff, diff /*, midfreq*/;
   int s,i;
   Sample *sp, *closest;
 
@@ -154,7 +154,7 @@ static void select_sample(int v, Instrument *ip)
 
   cdiff=0x7FFFFFFF;
   closest=sp=ip->sample;
-  midfreq = (sp->low_freq + sp->high_freq) / 2;
+  /* midfreq = (sp->low_freq + sp->high_freq) / 2; */
   for(i=0; i<s; i++)
     {
       diff=sp->root_freq - f;
@@ -744,8 +744,10 @@ static void start_note(MidiEvent *e, int i)
   int played_note, drumpan=NO_PANNING;
   int32 rt;
   int attacktime, releasetime, decaytime, variationbank;
+  /*
   int brightness = channel[ch].brightness;
   int harmoniccontent = channel[ch].harmoniccontent;
+  */
   int this_note = e->a;
   int this_velocity = e->b;
   int drumsflag = channel[ch].kit;
@@ -846,6 +848,7 @@ static void start_note(MidiEvent *e, int i)
 	case 12:
 		decaytime = 64-32;
 		break;
+	/*
 	case 16:
 		brightness = 64+16;
 		break;
@@ -861,6 +864,7 @@ static void start_note(MidiEvent *e, int i)
 	case 20:
 		harmoniccontent = 64+16;
 		break;
+	*/
 #if 0
 	case 24:
 		voice[i].modEnvToFilterFc=2.0;
