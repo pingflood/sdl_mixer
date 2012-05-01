@@ -1052,6 +1052,7 @@ int Mix_FadeInMusicPosCh(Mix_Music *music, int loops, int ms, int channel, doubl
 		channel_to_use = get_available_channel();
 		if (channel_to_use == -1) {
 			Mix_SetError("No free channels available");
+			SDL_UnlockAudio();
 			return -1;
 		}
 	} else {
