@@ -223,7 +223,7 @@ mad_getSamples(mad_data *mp3_mad, Uint8 *stream, int len) {
 
   if ((mp3_mad->status & MS_playing) == 0) {
 	/* We're not supposed to be playing. */
-	return;
+	return 0;
   }
 
   out = stream;
