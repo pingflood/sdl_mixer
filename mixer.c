@@ -290,7 +290,6 @@ _Mix_Channel *_StartMusic(int which, int is_fading, Mix_Music* music)
 		}
 		/* Queue up the audio data for this channel */
 		if ( channel != NULL ) {
-			Uint32 sdl_ticks = SDL_GetTicks();
 			if (Mix_Playing(which))
 				_Mix_channel_done_playing(which);
 			if (!channel->is_music) {
