@@ -361,7 +361,9 @@ void music_mixer(void *udata, Mix_Music * music_playing, Uint8 *master_stream, i
 		free(mix_input);
 	free(stream);
 	
+#ifdef USE_NATIVE_MIDI
 skip:
+#endif
 	/* Handle seamless music looping */
 	if (left > 0 && left < len) {
 		music_halt_or_loop(music_playing, channel);
@@ -831,19 +833,19 @@ void Mix_FreeMusic(Mix_Music *music)
 #ifdef USE_NATIVE_MIDI
   				if ( native_midi_ok ) {
 					native_midi_freesong(music->data.nativemidi);
-					goto skip;
+					break;
 				}
 #endif
 #ifdef USE_FLUIDSYNTH_MIDI
 				if ( fluidsynth_ok ) {
 					fluidsynth_freesong(music->data.fluidsynthmidi);
-					goto skip;
+					break;
 				}
 #endif
 #ifdef USE_TIMIDITY_MIDI
 				if ( timidity_ok ) {
 					Timidity_FreeSong(music->data.midi);
-					goto skip;
+					break;
 				}
 #endif
 				break;
@@ -873,7 +875,6 @@ void Mix_FreeMusic(Mix_Music *music)
 				break;
 		}
 
-    skip:
 		SDL_free(music);
 		if ( music == music_compat_stream ) {
 			music_compat_stream = NULL;
@@ -959,19 +960,19 @@ static int music_internal_play(Mix_Music *music, double position, int channel)
 #ifdef USE_NATIVE_MIDI
 		if ( native_midi_ok ) {
 			native_midi_start(music->data.nativemidi, 0);
-			goto skip;
+			break;
 		}
 #endif
 #ifdef USE_FLUIDSYNTH_MIDI
 		if (fluidsynth_ok ) {
 			fluidsynth_start(music->data.fluidsynthmidi);
-			goto skip;
+			break;
 		}
 #endif
 #ifdef USE_TIMIDITY_MIDI
 		if ( timidity_ok ) {
 			Timidity_Start(music->data.midi);
-			goto skip;
+			break;
 		}
 #endif
 		break;
@@ -1004,7 +1005,6 @@ static int music_internal_play(Mix_Music *music, double position, int channel)
 		break;
 	}
 
-skip:
 	/* Set the playback position, note any errors if an offset is used */
 	if ( retval == 0 ) {
 		if ( position > 0.0 ) {
@@ -1331,19 +1331,19 @@ static void music_internal_halt(Mix_Music * music_playing)
 #ifdef USE_NATIVE_MIDI
 		if ( native_midi_ok ) {
 			native_midi_stop();
-			goto skip;
+			break;
 		}
 #endif
 #ifdef USE_FLUIDSYNTH_MIDI
 		if ( fluidsynth_ok ) {
 			fluidsynth_stop(music_playing->data.fluidsynthmidi);
-			goto skip;
+			break;
 		}
 #endif
 #ifdef USE_TIMIDITY_MIDI
 		if ( timidity_ok ) {
 			Timidity_Stop();
-			goto skip;
+			break;
 		}
 #endif
 		break;
@@ -1373,7 +1373,6 @@ static void music_internal_halt(Mix_Music * music_playing)
 		return;
 	}
 
-skip:
 	music_playing->fading = MIX_NO_FADING;
 	music_playing->channel = NULL;
 }
@@ -1556,21 +1555,21 @@ static int music_internal_playing(Mix_Music *music_playing)
 		if ( native_midi_ok ) {
 			if ( ! native_midi_active() )
 				playing = 0;
-			goto skip;
+			break;
 		}
 #endif
 #ifdef USE_FLUIDSYNTH_MIDI
 		if ( fluidsynth_ok ) {
 			if ( ! fluidsynth_active(music_playing->data.fluidsynthmidi) )
 				playing = 0;
-			goto skip;
+			break;
 		}
 #endif
 #ifdef USE_TIMIDITY_MIDI
 		if ( timidity_ok ) {
 			if ( ! Timidity_Active() )
 				playing = 0;
-			goto skip;
+			break;
 		}
 #endif
 		break;
@@ -1607,7 +1606,6 @@ static int music_internal_playing(Mix_Music *music_playing)
 		break;
 	}
 
-skip:
 	return(playing);
 }
 int Mix_PlayingMusicCh(int channel)
