@@ -173,7 +173,6 @@ decode_frame(mad_data *mp3_mad) {
   unsigned int nchannels, nsamples;
   mad_fixed_t const *left_ch, *right_ch;
   unsigned char *out;
-  int ret;
 
   mad_synth_frame(&mp3_mad->synth, &mp3_mad->frame);
   pcm = &mp3_mad->synth.pcm;

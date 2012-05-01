@@ -87,7 +87,6 @@ SDL_AudioSpec *Mix_LoadAIFF_RW (SDL_RWops *src, int freesrc,
 
 	/* SSND chunk */
 	Uint32 offset;
-	Uint32 blocksize;
 
 	/* COMM format chunk */
 	Uint16 channels = 0;
@@ -137,7 +136,8 @@ SDL_AudioSpec *Mix_LoadAIFF_RW (SDL_RWops *src, int freesrc,
 			case SSND:
 				found_SSND	= 1;
 				offset		= SDL_ReadBE32(src);
-				blocksize	= SDL_ReadBE32(src);
+				/* Skip the blocksize. */
+				SDL_ReadBE32(src);
 				start		= SDL_RWtell(src) + offset;
 				break;
 

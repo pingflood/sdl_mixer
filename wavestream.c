@@ -306,7 +306,6 @@ static SDL_RWops *LoadWAVStream (SDL_RWops *src, SDL_AudioSpec *spec,
 
 	/* WAV magic header */
 	Uint32 RIFFchunk;
-	Uint32 wavelen;
 	Uint32 WAVEmagic;
 
 	/* FMT chunk */
@@ -316,7 +315,8 @@ static SDL_RWops *LoadWAVStream (SDL_RWops *src, SDL_AudioSpec *spec,
 
 	/* Check the magic header */
 	RIFFchunk	= SDL_ReadLE32(src);
-	wavelen		= SDL_ReadLE32(src);
+	/* Skip the wave length. */
+	SDL_ReadLE32(src);
 	WAVEmagic	= SDL_ReadLE32(src);
 	if ( (RIFFchunk != RIFF) || (WAVEmagic != WAVE) ) {
 		Mix_SetError("Unrecognized file type (not WAVE)");
@@ -436,7 +436,6 @@ static SDL_RWops *LoadAIFFStream (SDL_RWops *src, SDL_AudioSpec *spec,
 	Uint32 AIFFmagic;
 	/* SSND chunk        */
 	Uint32 offset;
-	Uint32 blocksize;
 	/* COMM format chunk */
 	Uint16 channels = 0;
 	Uint32 numsamples = 0;
@@ -479,7 +478,8 @@ static SDL_RWops *LoadAIFFStream (SDL_RWops *src, SDL_AudioSpec *spec,
 		case SSND:
 		    found_SSND		= 1;
 		    offset		= SDL_ReadBE32(src);
-		    blocksize		= SDL_ReadBE32(src);
+		   /* Skip the blocksize. */
+		    SDL_ReadBE32(src);
 		    *start		= SDL_RWtell(src) + offset;
 		    break;
 
