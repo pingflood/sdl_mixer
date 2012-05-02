@@ -235,6 +235,15 @@ extern DECLSPEC void * SDLCALL Mix_GetMusicHookDataCh(void);
  * Mix_HookMusic(). */
 extern DECLSPEC void * SDLCALL Mix_GetMusicHookData(void);
 
+/* Add your own callback when the music is about to loop. NULL to disable the
+ *  callback. Note that the hook is not called for music streams started
+ *  through the backwards compatibility functions that lack a channel parameter
+ *  (Mix_PlayMusic(), etc.)
+ * The hook is called synchronously, so make sure it doesn't block for too
+ *  long, or else buffer underruns will occur, introducing gaps between loops.
+ */
+extern DECLSPEC void SDLCALL Mix_HookMusicLoopingCh(void (*music_looping)(Mix_Music *music, int channel));
+
 /*
  * Add your own callback when a channel has finished playing. NULL
  *  to disable callback. The callback may be called from the mixer's audio 
