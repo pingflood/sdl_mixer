@@ -186,6 +186,9 @@ static void music_internal_halt(Mix_Music *music);
 static void (*music_finished_hook)(Mix_Music *music, int channel) = NULL;
 static void (*music_compat_finished_hook)(void) = NULL;
 
+/* Support for hooking when the music is about to loop */
+static void (*music_looping_hook)(Mix_Music *music, int channel) = NULL;
+
 void Mix_HookMusicFinishedCh(void (*music_finished)(Mix_Music *music, int channel))
 {
 	SDL_LockAudio();
@@ -198,6 +201,14 @@ void Mix_HookMusicFinished(void (*music_finished)(void))
 {
 	SDL_LockAudio();
 	music_compat_finished_hook = music_finished;
+	SDL_UnlockAudio();
+}
+
+
+void Mix_HookMusicLoopingCh(void (*music_looping)(Mix_Music *music, int channel))
+{	
+	SDL_LockAudio();
+	music_looping_hook = music_looping;
 	SDL_UnlockAudio();
 }
 
@@ -228,6 +239,9 @@ static int music_halt_or_loop (Mix_Music * music_playing, int channel)
 			current_fade = music_playing->fading;
 			music_internal_play(music_playing, 0.0, channel);
 			music_playing->fading = current_fade;
+			if ((channel != MUSIC_COMPAT_MAGIC_CHANNEL) && music_looping_hook) {
+				music_looping_hook(music_playing, channel);
+			}
 		} 
 		else 
 		{
