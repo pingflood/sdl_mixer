@@ -1047,6 +1047,11 @@ int Mix_FadeInMusicPosCh(Mix_Music *music, int loops, int ms, int channel, doubl
 
 	/* Play the puppy */
 	SDL_LockAudio();
+	/* The same stream can't be playing in more than one channels at once. */
+	if (music_internal_playing(music)) {
+		music_internal_halt(music);
+	}
+	_ClearMusic(music);
 	/* If specified channel is -1, find a free channel to play on. */
 	if (channel == -1) {
 		channel_to_use = get_available_channel();
