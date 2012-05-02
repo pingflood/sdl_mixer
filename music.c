@@ -1394,6 +1394,7 @@ int Mix_HaltMusicCh(Mix_Music *music)
 		}
 		if (is_playing) {
 			music_internal_halt(music);
+			_ClearMusic(music);
 		}
 		SDL_UnlockAudio();
 	}
