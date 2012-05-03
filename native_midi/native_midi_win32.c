@@ -47,7 +47,7 @@ struct _NativeMidiSong {
 
 static UINT MidiDevice=MIDI_MAPPER;
 static HMIDISTRM hMidiStream;
-static NativeMidiSong *currentsong;
+static NativeMidiSong *currentsong = NULL;
 
 static int BlockOut(NativeMidiSong *song)
 {
@@ -289,7 +289,7 @@ void native_midi_stop()
 
 int native_midi_active()
 {
-  return currentsong->MusicPlaying;
+  return (currentsong != NULL) && currentsong->MusicPlaying;
 }
 
 void native_midi_setvolume(int volume)
