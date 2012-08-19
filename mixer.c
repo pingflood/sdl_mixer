@@ -293,7 +293,6 @@ _Mix_Channel *_StartMusic(int which, int is_fading, Mix_Music* music)
 			if (Mix_Playing(which))
 				_Mix_channel_done_playing(which);
 			if (!channel->is_music) {
-				Mix_FreeChunk(channel->sound->chunk);
 				free(channel->sound);
 				channel->sound = NULL;
 				channel->is_music = SDL_TRUE;
@@ -962,7 +961,6 @@ int _Mix_SetupChunk(int which, Mix_Chunk* chunk, int loops, int ticks, int fade_
 			if (Mix_Playing(which))
 				_Mix_channel_done_playing(which);
 			if (mix_channel[which].is_music) {
-				Mix_FreeMusic(mix_channel[which].music);
 				mix_channel[which].music = NULL;
 				mix_channel[which].sound = (Mix_Sound *) malloc(sizeof(Mix_Sound));
 				mix_channel[which].is_music = SDL_FALSE;
